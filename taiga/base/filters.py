@@ -22,6 +22,7 @@ from django.db.models.sql.where import ExtraWhere, OR, AND
 from rest_framework import filters
 
 from taiga.base import tags
+from taiga.base import exceptions as exc
 
 from taiga.projects.models import Membership
 
@@ -92,8 +93,12 @@ class PermissionBasedFilterBackend(FilterBackend):
 
     def filter_queryset(self, request, queryset, view):
         project_id = None
-        if hasattr(view, "filter_fields") and "project" in view.filter_fields:
-            project_id = request.QUERY_PARAMS.get("project", None)
+        if (hasattr(view, "filter_fields") and "project" in view.filter_fields and
+                "project" in request.QUERY_PARAMS):
+            try:
+                project_id = int(request.QUERY_PARAMS["project"])
+            except:
+                raise exc.BadRequest("'project' must be an integer value.")
 
         qs = queryset
 
@@ -103,11 +108,13 @@ class PermissionBasedFilterBackend(FilterBackend):
             memberships_qs = Membership.objects.filter(user=request.user)
             if project_id:
                 memberships_qs = memberships_qs.filter(project_id=project_id)
-            memberships_qs = memberships_qs.filter(Q(role__permissions__contains=[self.permission]) | Q(is_owner=True))
+            memberships_qs = memberships_qs.filter(Q(role__permissions__contains=[self.permission]) |
+                                                   Q(is_owner=True))
 
             projects_list = [membership.project_id for membership in memberships_qs]
 
-            qs = qs.filter(Q(project_id__in=projects_list) | Q(project__public_permissions__contains=[self.permission]))
+            qs = qs.filter(Q(project_id__in=projects_list) |
+                           Q(project__public_permissions__contains=[self.permission]))
         else:
             qs = qs.filter(project__anon_permissions__contains=[self.permission])
 
@@ -171,8 +178,12 @@ class CanViewWikiAttachmentFilterBackend(PermissionBasedAttachmentFilterBackend)
 class CanViewProjectObjFilterBackend(FilterBackend):
     def filter_queryset(self, request, queryset, view):
         project_id = None
-        if hasattr(view, "filter_fields") and "project" in view.filter_fields:
-            project_id = request.QUERY_PARAMS.get("project", None)
+        if (hasattr(view, "filter_fields") and "project" in view.filter_fields and
+                "project" in request.QUERY_PARAMS):
+            try:
+                project_id = int(request.QUERY_PARAMS["project"])
+            except:
+                raise exc.BadRequest("'project' must be an integer value.")
 
         qs = queryset
 
@@ -182,7 +193,8 @@ class CanViewProjectObjFilterBackend(FilterBackend):
             memberships_qs = Membership.objects.filter(user=request.user)
             if project_id:
                 memberships_qs = memberships_qs.filter(project_id=project_id)
-            memberships_qs = memberships_qs.filter(Q(role__permissions__contains=['view_project']) | Q(is_owner=True))
+            memberships_qs = memberships_qs.filter(Q(role__permissions__contains=['view_project']) |
+                                                   Q(is_owner=True))
 
             projects_list = [membership.project_id for membership in memberships_qs]
 
